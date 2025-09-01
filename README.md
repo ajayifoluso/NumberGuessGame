@@ -27,12 +27,19 @@ Java-based web application.
 
 NumberGuessGame/
 |-- src/
+
 | |-- main/
+
 | | |-- java/com/studentapp/NumberGuessServlet.java
+
 | | |-- webapp/WEB-INF/web.xml
+
 | | |-- webapp/index.jsp
+
 |-- pom.xml
+
 |-- README.md
+
 |-- .gitignore
 
 **Code Files**

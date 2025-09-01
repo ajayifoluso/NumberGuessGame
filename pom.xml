@@ -1,0 +1,1 @@
+4.0.0 com.studentapp NumberGuessGame 1.0-SNAPSHOT war Number Guessing Game http://maven.apache.org javax.servlet javax.servlet-api 4.0.1 provided junit junit 4.13.2 test org.apache.maven.plugins maven-compiler-plugin 3.8.1 11 11 org.apache.maven.plugins maven-war-plugin 3.3.2

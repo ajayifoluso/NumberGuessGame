@@ -2,8 +2,8 @@ pipeline {
   agent any
 
   tools {
-    maven 'maven'   // must match your Jenkins tool name
-    jdk   'jdk17'   // must match your Jenkins tool name
+    maven 'Maven-3.8'   // must match Manage Jenkins → Tools
+    jdk   'JDK-21'      // must match Manage Jenkins → Tools
   }
 
   options { timestamps() }

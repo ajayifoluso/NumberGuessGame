@@ -2,8 +2,8 @@ pipeline {
   agent any
 
   tools {
-    maven 'maven'   // Jenkins tool name that exists
-    jdk   'jdk17'   // Jenkins tool name that exists
+    maven 'maven'   // must match your Jenkins tool name
+    jdk   'jdk17'   // must match your Jenkins tool name
   }
 
   options { timestamps() }
@@ -39,4 +39,3 @@ pipeline {
     failure { echo '❌ Build failed — scroll up to the first [ERROR] from Maven.' }
   }
 }
-`

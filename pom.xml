@@ -9,8 +9,11 @@
   <packaging>war</packaging>
   
   <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <failOnMissingWebXml>false</failOnMissingWebXml>
   </properties>
   
   <dependencies>
@@ -47,13 +50,17 @@
   </dependencies>
   
   <build>
+    <finalName>NumberGuessGame-V2</finalName>
+    
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.11.0</version>
+        <version>3.13.0</version>
         <configuration>
-          <release>${maven.compiler.release}</release>
+          <source>21</source>
+          <target>21</target>
+          <release>21</release>
         </configuration>
       </plugin>
       
@@ -79,6 +86,17 @@
         <version>3.2.5</version>
         <configuration>
           <useModulePath>false</useModulePath>
+        </configuration>
+      </plugin>
+      
+      <plugin>
+        <groupId>org.apache.tomcat.maven</groupId>
+        <artifactId>tomcat7-maven-plugin</artifactId>
+        <version>2.2</version>
+        <configuration>
+          <port>8080</port>
+          <path>/NumberGuessGame</path>
+          <update>true</update>
         </configuration>
       </plugin>
     </plugins>

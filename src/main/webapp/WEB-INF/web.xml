@@ -1,1 +1,9 @@
-Number Guess Game NumberGuessServlet com.studentapp.NumberGuessServlet NumberGuessServlet /guess
+<servlet>
+  <servlet-name>NumberGuessServlet</servlet-name>
+  <servlet-class>com.studentapp.NumberGuessServlet</servlet-class>
+</servlet>
+
+<servlet-mapping>
+  <servlet-name>NumberGuessServlet</servlet-name>
+  <url-pattern>/guess</url-pattern>
+</servlet-mapping>

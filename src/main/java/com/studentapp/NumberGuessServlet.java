@@ -14,42 +14,37 @@ public class NumberGuessServlet extends HttpServlet {
     private static final String MSG_CORRECT  = "Correct";
     private static final String MSG_INVALID  = "Invalid input";
 
-    @Override
-    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setStatus(HttpServletResponse.SC_OK);
-        resp.setContentType("text/plain;charset=UTF-8");
+    @Override protected void doGet (HttpServletRequest req, HttpServletResponse resp) throws IOException { handle(req, resp); }
+    @Override protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException { handle(req, resp); }
 
-        String raw = req.getParameter("number");
-        if (raw == null || !raw.matches("\\d+")) {
-            try (PrintWriter out = resp.getWriter()) { out.print(MSG_INVALID); }
-            return;
-        }
+    private void handle(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        resp.setContentType("text/html;charset=UTF-8");
 
-        int guess;
-        try { guess = Integer.parseInt(raw); }
-        catch (NumberFormatException e) {
-            try (PrintWriter out = resp.getWriter()) { out.print(MSG_INVALID); }
-            return;
-        }
-        if (guess < 1 || guess > 100) {
+        String raw = firstNonNull(req.getParameter("number"), req.getParameter("guess"));
+        Integer guess = parseGuess(raw);
+        if (guess == null || guess < 1 || guess > 100) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             try (PrintWriter out = resp.getWriter()) { out.print(MSG_INVALID); }
             return;
         }
 
         int target = getOrInitTarget(req.getSession(true));
-        final String msg;
-        if (guess < target)      msg = MSG_TOO_LOW;
-        else if (guess > target) msg = MSG_TOO_HIGH;
-        else                     msg = MSG_CORRECT;
+        final String msg = (guess < target) ? MSG_TOO_LOW : (guess > target) ? MSG_TOO_HIGH : MSG_CORRECT;
 
+        resp.setStatus(HttpServletResponse.SC_OK);
         try (PrintWriter out = resp.getWriter()) { out.print(msg); }
+    }
+
+    private static String firstNonNull(String a, String b) { return (a != null && !a.isEmpty()) ? a : b; }
+    private static Integer parseGuess(String s) {
+        if (s == null || !s.matches("\\d+")) return null;
+        try { return Integer.valueOf(s); } catch (NumberFormatException e) { return null; }
     }
 
     private int getOrInitTarget(HttpSession session) {
         Object val = session.getAttribute(ATTR_TARGET);
         if (val instanceof Integer) return (Integer) val;
-        // Deterministic default so tests get stable feedback.
-        int target = 50;
+        int target = 50; // deterministic so tests are predictable
         session.setAttribute(ATTR_TARGET, target);
         return target;
     }

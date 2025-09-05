@@ -2,7 +2,7 @@ pipeline {
   agent any
   tools {
     jdk 'JDK-21'          // Make sure this tool exists in Manage Jenkins → Tools
-    maven 'Maven-3.9'     // Optional: define a Maven tool too
+    maven 'Maven-3.8'     // Updated to match your Jenkins configuration
   }
   options { timestamps() }
 

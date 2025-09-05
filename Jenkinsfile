@@ -1,31 +1,52 @@
 pipeline {
   agent any
   tools {
-    jdk 'JDK-21'       // your defined JDK tool
-    // (omit Maven tool if you're using system mvn)
-  }
-  environment {
-    // Force mvn to use Java 21
-    JAVA_HOME = '/usr/lib/jvm/java-21-amazon-corretto.x86_64'
-    PATH = "${env.JAVA_HOME}/bin:${env.PATH}"
+    jdk 'JDK-21'          // Make sure this tool exists in Manage Jenkins → Tools
+    maven 'Maven-3.9'     // Optional: define a Maven tool too
   }
   options { timestamps() }
 
   stages {
-    stage('Env') {
+    stage('Verify toolchain') {
       steps {
         sh '''
-          echo "== Java & Maven =="
+          echo "JAVA SHOULD BE 21+ ↓↓↓"
           java -version
+          echo "MAVEN + JAVA HOME ↓↓↓"
           mvn -v
         '''
       }
     }
-    stage('Build') {
+
+    stage('Print Branch') {
       steps {
-        sh 'mvn -B -e -U clean package'
+        script {
+          def branch = env.BRANCH_NAME ?: sh(
+            returnStdout: true,
+            script: 'git name-rev --name-only HEAD 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown'
+          ).trim()
+          echo "🌿 Branch: ${branch}"
+        }
       }
     }
-    // Archive/Deploy stages...
+
+    stage('Build & Test') {
+      steps {
+        sh 'mvn -B -U clean verify'
+      }
+    }
+  }
+
+  post {
+    always {
+      script {
+        try { deleteDir() } catch (e) { echo "cleanup skipped: ${e}" }
+        try {
+          emailext to: 'ajayi.foluso@gmail.com',
+                   subject: "Build ${env.JOB_NAME} #${env.BUILD_NUMBER} → ${currentBuild.currentResult}",
+                   body: "See ${env.BUILD_URL}"
+        } catch (e) { echo "email skipped: ${e}" }
+      }
+    }
   }
 }

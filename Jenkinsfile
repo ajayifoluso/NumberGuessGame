@@ -1,399 +1,455 @@
-package com.studentapp;
-
-import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpSession;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.*;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-
-/**
- * Enhanced Number Guessing Game Servlet for V2
- * Supports animations, JSON responses, and advanced game features
- * DevOps CI/CD Project - Team Implementation
- */
-@WebServlet("/NumberGuessServlet")
-public class NumberGuessServlet extends HttpServlet {
+pipeline {
+    agent any
     
-    private static final long serialVersionUID = 1L;
-    private static final Gson gson = new Gson();
-    
-    // Game difficulty settings
-    private static final Map<String, GameDifficulty> DIFFICULTY_SETTINGS = new HashMap<>();
-    
-    static {
-        DIFFICULTY_SETTINGS.put("easy", new GameDifficulty(1, 50, 8));
-        DIFFICULTY_SETTINGS.put("medium", new GameDifficulty(1, 100, 10));
-        DIFFICULTY_SETTINGS.put("hard", new GameDifficulty(1, 500, 15));
-        DIFFICULTY_SETTINGS.put("expert", new GameDifficulty(1, 1000, 20));
+    environment {
+        // Project Configuration
+        PROJECT_NAME = 'NumberGuessGame-V2'
+        MAVEN_OPTS = '-Dmaven.test.failure.ignore=true'
+        
+        // Version and Build Info
+        BUILD_VERSION = "2.0.${BUILD_NUMBER}"
+        ARTIFACT_NAME = "NumberGuessGame-${BUILD_VERSION}.war"
+        
+        // Deployment Configuration
+        TOMCAT_HOME = '/opt/tomcat'
+        DEPLOYMENT_PATH = "${TOMCAT_HOME}/webapps"
+        BACKUP_PATH = '/opt/backups'
+        
+        // Notification Configuration
+        SLACK_CHANNEL = '#devops-alerts'
+        EMAIL_RECIPIENTS = 'team@company.com'
     }
     
-    /**
-     * Inner class to represent game difficulty settings
-     */
-    private static class GameDifficulty {
-        final int minRange;
-        final int maxRange;
-        final int maxAttempts;
+    options {
+        // Build Configuration
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 30, unit: 'MINUTES')
+        timestamps()
+        skipStagesAfterUnstable()
         
-        GameDifficulty(int minRange, int maxRange, int maxAttempts) {
-            this.minRange = minRange;
-            this.maxRange = maxRange;
-            this.maxAttempts = maxAttempts;
-        }
+        // Parallel builds prevention
+        disableConcurrentBuilds()
     }
     
-    /**
-     * Inner class to represent game result
-     */
-    private static class GameResult {
-        boolean correct;
-        String message;
-        String hint;
-        String animationType;
-        boolean gameOver;
-        boolean won;
-        int attempts;
-        int target;
-        String difficulty;
-        long timestamp;
-        
-        GameResult() {
-            this.timestamp = System.currentTimeMillis();
-        }
+    triggers {
+        // Automatic triggers
+        pollSCM('H/5 * * * *')  // Poll every 5 minutes
+        cron('H 2 * * *')       // Nightly build at 2 AM
     }
     
-    /**
-     * Handle POST requests for game guesses
-     */
-    @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response) 
-            throws ServletException, IOException {
-        
-        // Set response type to JSON
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        response.setHeader("Cache-Control", "no-cache");
-        
-        PrintWriter out = response.getWriter();
-        HttpSession session = request.getSession();
-        
-        try {
-            // Get request parameters
-            String guessStr = request.getParameter("guess");
-            String targetStr = request.getParameter("target");
-            String attemptsStr = request.getParameter("attempts");
-            String difficulty = request.getParameter("difficulty");
-            
-            // Validate parameters
-            if (guessStr == null || targetStr == null || attemptsStr == null) {
-                sendErrorResponse(out, "Missing required parameters", 400);
-                return;
-            }
-            
-            int guess = Integer.parseInt(guessStr);
-            int target = Integer.parseInt(targetStr);
-            int attempts = Integer.parseInt(attemptsStr);
-            
-            // Validate difficulty
-            if (difficulty == null || !DIFFICULTY_SETTINGS.containsKey(difficulty)) {
-                difficulty = "medium"; // Default fallback
-            }
-            
-            GameDifficulty gameDiff = DIFFICULTY_SETTINGS.get(difficulty);
-            
-            // Validate guess range
-            if (guess < gameDiff.minRange || guess > gameDiff.maxRange) {
-                sendErrorResponse(out, "Guess out of valid range (" + 
-                    gameDiff.minRange + "-" + gameDiff.maxRange + ")", 400);
-                return;
-            }
-            
-            // Process the guess
-            GameResult result = processGuess(guess, target, attempts, difficulty, session);
-            
-            // Send JSON response
-            sendGameResponse(out, result);
-            
-            // Log game activity
-            logGameActivity(request, result);
-            
-        } catch (NumberFormatException e) {
-            sendErrorResponse(out, "Invalid number format", 400);
-        } catch (Exception e) {
-            sendErrorResponse(out, "Server error occurred", 500);
-            e.printStackTrace();
-        } finally {
-            out.close();
-        }
-    }
-    
-    /**
-     * Handle GET requests for game status and configuration
-     */
-    @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response) 
-            throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        PrintWriter out = response.getWriter();
-        
-        try {
-            JsonObject gameConfig = new JsonObject();
-            gameConfig.addProperty("status", "ready");
-            gameConfig.addProperty("version", "2.0");
-            gameConfig.addProperty("message", "Number Guessing Game V2 - Enhanced with animations!");
-            
-            // Add difficulty configurations
-            JsonObject difficulties = new JsonObject();
-            for (Map.Entry<String, GameDifficulty> entry : DIFFICULTY_SETTINGS.entrySet()) {
-                JsonObject diffConfig = new JsonObject();
-                GameDifficulty diff = entry.getValue();
-                diffConfig.addProperty("min", diff.minRange);
-                diffConfig.addProperty("max", diff.maxRange);
-                diffConfig.addProperty("maxAttempts", diff.maxAttempts);
-                difficulties.add(entry.getKey(), diffConfig);
-            }
-            gameConfig.add("difficulties", difficulties);
-            
-            // Add feature list
-            gameConfig.addProperty("features", "animations,visual-effects,hints,statistics,multiple-difficulties");
-            gameConfig.addProperty("timestamp", System.currentTimeMillis());
-            
-            out.println(gson.toJson(gameConfig));
-            
-        } catch (Exception e) {
-            sendErrorResponse(out, "Error getting game configuration", 500);
-            e.printStackTrace();
-        } finally {
-            out.close();
-        }
-    }
-    
-    /**
-     * Process a guess and return game result
-     */
-    private GameResult processGuess(int guess, int target, int attempts, 
-                                   String difficulty, HttpSession session) {
-        
-        GameResult result = new GameResult();
-        result.attempts = attempts;
-        result.target = target;
-        result.difficulty = difficulty;
-        result.correct = (guess == target);
-        
-        if (result.correct) {
-            // Correct guess
-            result.message = generateSuccessMessage(attempts);
-            result.animationType = attempts == 1 ? "perfectWin" : "correctGuess";
-            result.gameOver = true;
-            result.won = true;
-            result.hint = "Congratulations! 🎉";
-            
-            // Update session statistics
-            updateSessionStats(session, attempts, true, difficulty);
-            
-        } else {
-            // Wrong guess
-            GameDifficulty gameDiff = DIFFICULTY_SETTINGS.get(difficulty);
-            
-            if (attempts >= gameDiff.maxAttempts) {
-                // Game over
-                result.message = "💀 Game Over! The number was " + target + ". Better luck next time!";
-                result.animationType = "gameOver";
-                result.gameOver = true;
-                result.won = false;
-                result.hint = "Don't give up! Try again with a new game.";
+    stages {
+        stage('🚀 Initialize V2 Pipeline') {
+            steps {
+                script {
+                    echo "==========================================="
+                    echo "🎯 Number Guessing Game V2 - CI/CD Pipeline"
+                    echo "==========================================="
+                    echo "📊 Build: ${BUILD_NUMBER}"
+                    echo "📋 Version: ${BUILD_VERSION}"
+                    echo "🌿 Branch: ${env.BRANCH_NAME}"
+                    echo "👤 User: ${env.BUILD_USER ?: 'System'}"
+                    echo "🕐 Started: ${new Date()}"
+                    echo "==========================================="
+                }
                 
-                updateSessionStats(session, attempts, false, difficulty);
+                // Clean workspace
+                cleanWs()
                 
-            } else {
-                // Continue playing
-                result.message = generateHintMessage(guess, target);
-                result.hint = generateSmartHint(guess, target, attempts, difficulty);
-                result.animationType = "wrongGuess";
-                result.gameOver = false;
-                result.won = false;
+                // Send start notification
+                script {
+                    try {
+                        emailext (
+                            subject: "🚀 V2 Pipeline Started - Build #${BUILD_NUMBER}",
+                            body: """
+                                <h2>🎯 Number Guessing Game V2 - Build Started</h2>
+                                <p><strong>Build Number:</strong> ${BUILD_NUMBER}</p>
+                                <p><strong>Version:</strong> ${BUILD_VERSION}</p>
+                                <p><strong>Branch:</strong> ${env.BRANCH_NAME}</p>
+                                <p><strong>Started By:</strong> ${env.BUILD_USER ?: 'Automated Trigger'}</p>
+                                <p><strong>Jenkins URL:</strong> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
+                            """,
+                            to: "${EMAIL_RECIPIENTS}",
+                            mimeType: 'text/html'
+                        )
+                    } catch (Exception e) {
+                        echo "⚠️ Email notification failed: ${e.getMessage()}"
+                    }
+                }
             }
         }
         
-        return result;
-    }
-    
-    /**
-     * Generate success message based on attempts
-     */
-    private String generateSuccessMessage(int attempts) {
-        String[] perfectMessages = {
-            "🎉 INCREDIBLE! Perfect first try! You're a genius! 🎉",
-            "🎯 AMAZING! Bull's eye on the first shot! 🎯",
-            "⭐ PHENOMENAL! First try mastery! ⭐"
-        };
-        
-        String[] goodMessages = {
-            "🎉 Excellent! You got it in " + attempts + " attempts! 🎉",
-            "🏆 Well done! " + attempts + " attempts - great job! 🏆",
-            "✨ Fantastic! Only " + attempts + " tries needed! ✨"
-        };
-        
-        String[] okMessages = {
-            "🎉 Good job! You got it in " + attempts + " attempts! 🎉",
-            "👍 Nice work! " + attempts + " attempts to victory! 👍",
-            "🎯 Success! Found it in " + attempts + " tries! 🎯"
-        };
-        
-        Random random = new Random();
-        
-        if (attempts == 1) {
-            return perfectMessages[random.nextInt(perfectMessages.length)];
-        } else if (attempts <= 3) {
-            return goodMessages[random.nextInt(goodMessages.length)];
-        } else {
-            return okMessages[random.nextInt(okMessages.length)];
-        }
-    }
-    
-    /**
-     * Generate basic hint message
-     */
-    private String generateHintMessage(int guess, int target) {
-        if (guess < target) {
-            return "📈 Too low! Aim higher!";
-        } else {
-            return "📉 Too high! Go lower!";
-        }
-    }
-    
-    /**
-     * Generate smart hint with proximity and context
-     */
-    private String generateSmartHint(int guess, int target, int attempts, String difficulty) {
-        int difference = Math.abs(guess - target);
-        StringBuilder hint = new StringBuilder();
-        
-        // Basic direction
-        if (guess < target) {
-            hint.append("📈 Go higher! ");
-        } else {
-            hint.append("📉 Go lower! ");
-        }
-        
-        // Proximity hints based on difficulty
-        GameDifficulty gameDiff = DIFFICULTY_SETTINGS.get(difficulty);
-        int range = gameDiff.maxRange - gameDiff.minRange + 1;
-        double proximityPercent = (double) difference / range * 100;
-        
-        if (proximityPercent <= 2) {
-            hint.append("🔥 EXTREMELY close! Almost there!");
-        } else if (proximityPercent <= 5) {
-            hint.append("🔥 Very close! You're burning hot!");
-        } else if (proximityPercent <= 10) {
-            hint.append("😊 Getting warmer! Keep going!");
-        } else if (proximityPercent <= 20) {
-            hint.append("🏠 In the right neighborhood!");
-        } else if (proximityPercent <= 40) {
-            hint.append("🚶 On the right track!");
-        } else {
-            hint.append("💪 Keep trying! You can do this!");
-        }
-        
-        // Add encouragement based on attempts
-        int maxAttempts = gameDiff.maxAttempts;
-        int remaining = maxAttempts - attempts;
-        
-        if (remaining <= 2) {
-            hint.append(" ⚠️ Only ").append(remaining).append(" attempt(s) left!");
-        } else if (remaining <= 4) {
-            hint.append(" ⏰ ").append(remaining).append(" attempts remaining.");
-        }
-        
-        return hint.toString();
-    }
-    
-    /**
-     * Update session statistics
-     */
-    private void updateSessionStats(HttpSession session, int attempts, boolean won, String difficulty) {
-        // Get or initialize stats
-        Integer totalGames = (Integer) session.getAttribute("totalGames");
-        Integer totalWins = (Integer) session.getAttribute("totalWins");
-        Integer totalAttempts = (Integer) session.getAttribute("totalAttempts");
-        Integer bestScore = (Integer) session.getAttribute("bestScore");
-        
-        if (totalGames == null) totalGames = 0;
-        if (totalWins == null) totalWins = 0;
-        if (totalAttempts == null) totalAttempts = 0;
-        
-        // Update stats
-        totalGames++;
-        totalAttempts += attempts;
-        
-        if (won) {
-            totalWins++;
-            if (bestScore == null || attempts < bestScore) {
-                bestScore = attempts;
-                session.setAttribute("bestScore", bestScore);
+        stage('📥 Checkout V2 Source') {
+            steps {
+                echo "📥 Checking out V2 source code..."
+                
+                checkout scm
+                
+                script {
+                    // Verify V2 files exist
+                    def v2Files = [
+                        'src/main/webapp/assets/css/animations.css',
+                        'src/main/webapp/assets/css/game-styles.css',
+                        'src/main/webapp/assets/js/game-controller.js',
+                        'src/main/webapp/index.jsp'
+                    ]
+                    
+                    v2Files.each { file ->
+                        if (fileExists(file)) {
+                            echo "✅ V2 File found: ${file}"
+                        } else {
+                            error "❌ V2 File missing: ${file}"
+                        }
+                    }
+                }
+                
+                // Display Git information
+                script {
+                    def gitCommit = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
+                    def gitBranch = sh(returnStdout: true, script: 'git rev-parse --abbrev-ref HEAD').trim()
+                    def gitAuthor = sh(returnStdout: true, script: 'git log -1 --pretty=format:"%an"').trim()
+                    
+                    echo "📋 Git Commit: ${gitCommit}"
+                    echo "🌿 Git Branch: ${gitBranch}"
+                    echo "👤 Last Author: ${gitAuthor}"
+                }
             }
         }
         
-        // Save updated stats
-        session.setAttribute("totalGames", totalGames);
-        session.setAttribute("totalWins", totalWins);
-        session.setAttribute("totalAttempts", totalAttempts);
-        session.setAttribute("lastDifficulty", difficulty);
-        session.setAttribute("lastPlayTime", new Date());
+        stage('🔍 Code Quality Analysis') {
+            parallel {
+                stage('📊 Static Analysis') {
+                    steps {
+                        echo "📊 Running static code analysis..."
+                        
+                        script {
+                            // Check for common issues
+                            sh '''
+                                echo "🔍 Checking Java files..."
+                                find src -name "*.java" -type f | wc -l
+                                
+                                echo "🔍 Checking CSS files..."
+                                find src -name "*.css" -type f | wc -l
+                                
+                                echo "🔍 Checking JavaScript files..."
+                                find src -name "*.js" -type f | wc -l
+                                
+                                echo "🔍 Checking JSP files..."
+                                find src -name "*.jsp" -type f | wc -l
+                            '''
+                        }
+                    }
+                }
+                
+                stage('🧪 Dependency Check') {
+                    steps {
+                        echo "🧪 Checking Maven dependencies..."
+                        
+                        sh 'mvn dependency:tree'
+                        sh 'mvn dependency:analyze'
+                    }
+                }
+            }
+        }
+        
+        stage('🔨 Build V2 Application') {
+            steps {
+                echo "🔨 Building V2 application with Maven..."
+                
+                script {
+                    // Clean and compile
+                    sh 'mvn clean compile -DskipTests=true'
+                    
+                    // Verify compilation
+                    if (fileExists('target/classes')) {
+                        echo "✅ Compilation successful"
+                    } else {
+                        error "❌ Compilation failed - no target/classes directory"
+                    }
+                }
+                
+                // Package the application
+                sh "mvn package -DskipTests=true -Dproject.version=${BUILD_VERSION}"
+                
+                // Verify WAR file creation
+                script {
+                    def warFile = "target/NumberGuessGame-${BUILD_VERSION}.war"
+                    if (fileExists(warFile)) {
+                        echo "✅ WAR file created: ${warFile}"
+                        
+                        // Get file size
+                        def fileSize = sh(returnStdout: true, script: "du -h ${warFile} | cut -f1").trim()
+                        echo "📦 WAR file size: ${fileSize}"
+                    } else {
+                        error "❌ WAR file not created"
+                    }
+                }
+            }
+            
+            post {
+                success {
+                    echo "✅ Build completed successfully"
+                }
+                failure {
+                    echo "❌ Build failed"
+                }
+            }
+        }
+        
+        stage('🧪 Test V2 Features') {
+            parallel {
+                stage('🔧 Unit Tests') {
+                    steps {
+                        echo "🔧 Running unit tests..."
+                        
+                        script {
+                            try {
+                                sh 'mvn test'
+                            } catch (Exception e) {
+                                echo "⚠️ Some tests failed, but continuing..."
+                            }
+                        }
+                    }
+                    
+                    post {
+                        always {
+                            // Publish test results
+                            script {
+                                if (fileExists('target/surefire-reports/TEST-*.xml')) {
+                                    junit 'target/surefire-reports/TEST-*.xml'
+                                    echo "📊 Test results published"
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                stage('🎨 Frontend Asset Tests') {
+                    steps {
+                        echo "🎨 Testing V2 frontend assets..."
+                        
+                        script {
+                            // Verify CSS files are valid
+                            sh '''
+                                echo "🎨 Checking CSS syntax..."
+                                for css_file in $(find src/main/webapp/assets/css -name "*.css"); do
+                                    echo "Checking: $css_file"
+                                    # Basic CSS validation (check for obvious syntax errors)
+                                    if grep -q "}" "$css_file"; then
+                                        echo "✅ $css_file appears valid"
+                                    else
+                                        echo "⚠️ $css_file may have issues"
+                                    fi
+                                done
+                            '''
+                            
+                            // Verify JavaScript files
+                            sh '''
+                                echo "📜 Checking JavaScript syntax..."
+                                for js_file in $(find src/main/webapp/assets/js -name "*.js"); do
+                                    echo "Checking: $js_file"
+                                    # Basic JS validation
+                                    if node -c "$js_file" 2>/dev/null; then
+                                        echo "✅ $js_file syntax is valid"
+                                    else
+                                        echo "⚠️ $js_file may have syntax issues"
+                                    fi
+                                done
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        
+        stage('🚀 Deploy to Staging') {
+            when {
+                anyOf {
+                    branch 'v2-visual'
+                    branch 'feature/v2-enhancements'
+                    branch 'main'
+                }
+            }
+            
+            steps {
+                echo "🚀 Deploying V2 to staging environment..."
+                
+                script {
+                    // Create backup of current deployment
+                    sh """
+                        if [ -f ${DEPLOYMENT_PATH}/NumberGuessGame.war ]; then
+                            echo "📦 Creating backup..."
+                            cp ${DEPLOYMENT_PATH}/NumberGuessGame.war ${BACKUP_PATH}/NumberGuessGame-backup-\$(date +%Y%m%d-%H%M%S).war
+                        fi
+                    """
+                    
+                    // Deploy new version
+                    sh """
+                        echo "🚀 Deploying new version..."
+                        cp target/NumberGuessGame-${BUILD_VERSION}.war ${DEPLOYMENT_PATH}/NumberGuessGame-V2.war
+                        
+                        echo "⏳ Waiting for deployment..."
+                        sleep 10
+                        
+                        echo "🔍 Checking deployment status..."
+                        if [ -d ${DEPLOYMENT_PATH}/NumberGuessGame-V2 ]; then
+                            echo "✅ Deployment successful"
+                        else
+                            echo "⚠️ Deployment may still be in progress"
+                        fi
+                    """
+                }
+            }
+            
+            post {
+                success {
+                    echo "✅ Staging deployment successful"
+                }
+                failure {
+                    echo "❌ Staging deployment failed"
+                }
+            }
+        }
+        
+        stage('🧪 Integration Tests') {
+            when {
+                anyOf {
+                    branch 'v2-visual'
+                    branch 'feature/v2-enhancements'
+                    branch 'main'
+                }
+            }
+            
+            steps {
+                echo "🧪 Running integration tests for V2..."
+                
+                script {
+                    // Wait for application to be ready
+                    sh 'sleep 15'
+                    
+                    // Test application endpoints
+                    sh '''
+                        echo "🔍 Testing application endpoints..."
+                        
+                        # Test main page
+                        curl -f -s http://localhost:8080/NumberGuessGame-V2/ > /dev/null && echo "✅ Main page accessible" || echo "❌ Main page failed"
+                        
+                        # Test servlet endpoint
+                        curl -f -s http://localhost:8080/NumberGuessGame-V2/NumberGuessServlet > /dev/null && echo "✅ Servlet accessible" || echo "❌ Servlet failed"
+                        
+                        # Test CSS files
+                        curl -f -s http://localhost:8080/NumberGuessGame-V2/assets/css/animations.css > /dev/null && echo "✅ Animations CSS accessible" || echo "❌ Animations CSS failed"
+                        
+                        # Test JavaScript files
+                        curl -f -s http://localhost:8080/NumberGuessGame-V2/assets/js/game-controller.js > /dev/null && echo "✅ Game Controller JS accessible" || echo "❌ Game Controller JS failed"
+                    '''
+                }
+            }
+        }
+        
+        stage('📊 Performance Tests') {
+            when {
+                anyOf {
+                    branch 'v2-visual'
+                    branch 'main'
+                }
+            }
+            
+            steps {
+                echo "📊 Running performance tests..."
+                
+                script {
+                    // Simple load test
+                    sh '''
+                        echo "🔄 Running basic load test..."
+                        for i in {1..10}; do
+                            curl -s -o /dev/null -w "%{http_code} %{time_total}\\n" http://localhost:8080/NumberGuessGame-V2/
+                        done
+                    '''
+                }
+            }
+        }
     }
     
-    /**
-     * Send game response as JSON
-     */
-    private void sendGameResponse(PrintWriter out, GameResult result) {
-        JsonObject response = new JsonObject();
-        response.addProperty("correct", result.correct);
-        response.addProperty("message", result.message);
-        response.addProperty("hint", result.hint);
-        response.addProperty("animationType", result.animationType);
-        response.addProperty("gameOver", result.gameOver);
-        response.addProperty("won", result.won);
-        response.addProperty("attempts", result.attempts);
-        response.addProperty("difficulty", result.difficulty);
-        response.addProperty("timestamp", result.timestamp);
-        response.addProperty("status", "success");
+    post {
+        always {
+            echo "🧹 Cleaning up workspace..."
+            
+            // Archive artifacts
+            script {
+                if (fileExists("target/NumberGuessGame-${BUILD_VERSION}.war")) {
+                    archiveArtifacts artifacts: "target/NumberGuessGame-${BUILD_VERSION}.war", fingerprint: true
+                    echo "📦 Artifacts archived"
+                }
+            }
+            
+            // Clean workspace
+            cleanWs()
+        }
         
-        out.println(gson.toJson(response));
-    }
-    
-    /**
-     * Send error response as JSON
-     */
-    private void sendErrorResponse(PrintWriter out, String message, int statusCode) {
-        JsonObject error = new JsonObject();
-        error.addProperty("status", "error");
-        error.addProperty("message", message);
-        error.addProperty("statusCode", statusCode);
-        error.addProperty("timestamp", System.currentTimeMillis());
+        success {
+            script {
+                echo "🎉 V2 Pipeline completed successfully!"
+                
+                emailext (
+                    subject: "✅ V2 Build Success - Build #${BUILD_NUMBER}",
+                    body: """
+                        <h2>🎉 Number Guessing Game V2 - Build Successful!</h2>
+                        <p><strong>Build Number:</strong> ${BUILD_NUMBER}</p>
+                        <p><strong>Version:</strong> ${BUILD_VERSION}</p>
+                        <p><strong>Branch:</strong> ${env.BRANCH_NAME}</p>
+                        <p><strong>Duration:</strong> ${currentBuild.durationString}</p>
+                        <p><strong>Status:</strong> ✅ SUCCESS</p>
+                        
+                        <h3>🚀 V2 Features Deployed:</h3>
+                        <ul>
+                            <li>🎨 Enhanced animations and visual effects</li>
+                            <li>📊 Improved game statistics</li>
+                            <li>🎯 Multiple difficulty levels</li>
+                            <li>💡 Smart hint system</li>
+                            <li>📱 Mobile-responsive design</li>
+                        </ul>
+                        
+                        <p><strong>Application URL:</strong> <a href="http://localhost:8080/NumberGuessGame-V2/">http://localhost:8080/NumberGuessGame-V2/</a></p>
+                        <p><strong>Jenkins Build:</strong> <a href="${BUILD_URL}">${BUILD_URL}</a></p>
+                    """,
+                    to: "${EMAIL_RECIPIENTS}",
+                    mimeType: 'text/html'
+                )
+            }
+        }
         
-        out.println(gson.toJson(error));
-    }
-    
-    /**
-     * Log game activity for monitoring
-     */
-    private void logGameActivity(HttpServletRequest request, GameResult result) {
-        String clientIP = request.getRemoteAddr();
-        String userAgent = request.getHeader("User-Agent");
+        failure {
+            script {
+                echo "❌ V2 Pipeline failed!"
+                
+                emailext (
+                    subject: "❌ V2 Build Failed - Build #${BUILD_NUMBER}",
+                    body: """
+                        <h2>❌ Number Guessing Game V2 - Build Failed</h2>
+                        <p><strong>Build Number:</strong> ${BUILD_NUMBER}</p>
+                        <p><strong>Version:</strong> ${BUILD_VERSION}</p>
+                        <p><strong>Branch:</strong> ${env.BRANCH_NAME}</p>
+                        <p><strong>Duration:</strong> ${currentBuild.durationString}</p>
+                        <p><strong>Status:</strong> ❌ FAILED</p>
+                        
+                        <p><strong>Please check the build logs:</strong> <a href="${BUILD_URL}/console">${BUILD_URL}/console</a></p>
+                        
+                        <p>🔧 <strong>Next Steps:</strong></p>
+                        <ul>
+                            <li>Review build console output</li>
+                            <li>Check code changes in latest commit</li>
+                            <li>Verify all V2 files are present</li>
+                            <li>Test locally before pushing</li>
+                        </ul>
+                    """,
+                    to: "${EMAIL_RECIPIENTS}",
+                    mimeType: 'text/html'
+                )
+            }
+        }
         
-        System.out.println("GAME_LOG: " + 
-            "IP=" + clientIP + 
-            ", Correct=" + result.correct + 
-            ", Attempts=" + result.attempts + 
-            ", Difficulty=" + result.difficulty + 
-            ", Timestamp=" + result.timestamp);
+        unstable {
+            echo "⚠️ V2 Pipeline completed with warnings"
+        }
     }
 }

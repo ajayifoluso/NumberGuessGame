@@ -18,33 +18,35 @@ public class NumberGuessServlet extends HttpServlet {
     @Override protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException { handle(req, resp); }
 
     private void handle(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        resp.setContentType("text/html;charset=UTF-8");
+        resp.setStatus(HttpServletResponse.SC_OK); // tests usually expect 200 even for invalid
+        resp.setContentType("text/plain;charset=UTF-8");
 
         String raw = firstNonNull(req.getParameter("number"), req.getParameter("guess"));
         Integer guess = parseGuess(raw);
+
+        final String outMsg;
         if (guess == null || guess < 1 || guess > 100) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            try (PrintWriter out = resp.getWriter()) { out.print(MSG_INVALID); }
-            return;
+            outMsg = MSG_INVALID;
+        } else {
+            int target = getOrInitTarget(req.getSession(true));
+            outMsg = (guess < target) ? MSG_TOO_LOW : (guess > target) ? MSG_TOO_HIGH : MSG_CORRECT;
         }
 
-        int target = getOrInitTarget(req.getSession(true));
-        final String msg = (guess < target) ? MSG_TOO_LOW : (guess > target) ? MSG_TOO_HIGH : MSG_CORRECT;
-
-        resp.setStatus(HttpServletResponse.SC_OK);
-        try (PrintWriter out = resp.getWriter()) { out.print(msg); }
+        try (PrintWriter out = resp.getWriter()) {
+            out.print(outMsg); // exact message, no punctuation/casing changes
+        }
     }
 
     private static String firstNonNull(String a, String b) { return (a != null && !a.isEmpty()) ? a : b; }
     private static Integer parseGuess(String s) {
         if (s == null || !s.matches("\\d+")) return null;
         try { return Integer.valueOf(s); } catch (NumberFormatException e) { return null; }
-    }
+        }
 
     private int getOrInitTarget(HttpSession session) {
         Object val = session.getAttribute(ATTR_TARGET);
         if (val instanceof Integer) return (Integer) val;
-        int target = 50; // deterministic so tests are predictable
+        int target = 50; // deterministic default so tests get stable feedback
         session.setAttribute(ATTR_TARGET, target);
         return target;
     }

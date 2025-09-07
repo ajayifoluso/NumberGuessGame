@@ -52,3 +52,5 @@ files.
 - Pipeline Execution: Demonstrate your automated build, test, and deployment pipeline in Jenkins.
 - Deployment Showcase: Access the running application and verify its functionality.
 - Lessons Learned: Each team member must share insights, challenges, and key takeaways.
+
+**Latest Update**: Fixed compilation issues by separating test code from main servlet implementation.

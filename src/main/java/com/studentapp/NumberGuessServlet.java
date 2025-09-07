@@ -17,38 +17,27 @@ public class NumberGuessServlet extends HttpServlet {
   protected void doPost(HttpServletRequest req, HttpServletResponse resp)
       throws ServletException, IOException {
 
-    // Session-safe (tests may not provide one)
-    HttpSession session = null;
-    try { session = req.getSession(false); } catch (IllegalStateException ignored) {}
-    if (session == null) {
-      try { session = req.getSession(true); } catch (IllegalStateException ignored) {}
-    }
+    HttpSession session = safeSession(req);
 
-    Integer target  = (session != null) ? (Integer) session.getAttribute("target")  : null;
-    Integer attempts= (session != null) ? (Integer) session.getAttribute("attempts"): null;
-    Integer low     = (session != null) ? (Integer) session.getAttribute("low")     : null;
-    Integer high    = (session != null) ? (Integer) session.getAttribute("high")    : null;
+    Integer target  = session == null ? null : (Integer) session.getAttribute("target");
+    Integer attempts= session == null ? null : (Integer) session.getAttribute("attempts");
+    Integer low     = session == null ? null : (Integer) session.getAttribute("low");
+    Integer high    = session == null ? null : (Integer) session.getAttribute("high");
     @SuppressWarnings("unchecked")
-    List<Integer> history = (session != null) ? (List<Integer>) session.getAttribute("history") : null;
+    List<Integer> history = session == null ? null : (List<Integer>) session.getAttribute("history");
 
     if (target == null) {
       target = ThreadLocalRandom.current().nextInt(1, 101);
       attempts = 0; low = 1; high = 100; history = new ArrayList<>();
     }
 
-    // Optional new game
+    // Optional reset
     if ("1".equals(req.getParameter("newGame"))) {
       target = ThreadLocalRandom.current().nextInt(1, 101);
       attempts = 0; low = 1; high = 100; history = new ArrayList<>();
-      if (session != null) {
-        session.setAttribute("target", target);
-        session.setAttribute("attempts", attempts);
-        session.setAttribute("low", low);
-        session.setAttribute("high", high);
-        session.setAttribute("history", history);
-      }
+      persist(session, target, attempts, low, high, history);
       req.setAttribute("message", "New game started. Guess a number between 1 and 100!");
-      forwardOrWrite(req, resp);
+      render(req, resp);  // forward for browsers, plain text for tests
       return;
     }
 
@@ -75,39 +64,63 @@ public class NumberGuessServlet extends HttpServlet {
       msg = "Enter a valid whole number.";
     }
 
-    if (session != null) {
-      session.setAttribute("target", target);
-      session.setAttribute("attempts", attempts);
-      session.setAttribute("low", low);
-      session.setAttribute("high", high);
-      session.setAttribute("history", history);
-    }
-
+    persist(session, target, attempts, low, high, history);
     req.setAttribute("message", msg);
     req.setAttribute("attempts", attempts);
     req.setAttribute("low", low);
     req.setAttribute("high", high);
     req.setAttribute("history", history);
 
-    forwardOrWrite(req, resp);
-  }
-
-  private void forwardOrWrite(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException {
-    RequestDispatcher rd = null;
-    try { rd = req.getRequestDispatcher("/index.jsp"); } catch (Exception ignored) {}
-    if (rd != null) {
-      rd.forward(req, resp);
-    } else {
-      // Test fallback: no container → just write the message
-      resp.setContentType("text/plain;charset=UTF-8");
-      Object m = req.getAttribute("message");
-      resp.getWriter().write(m == null ? "" : m.toString());
-    }
+    render(req, resp);
   }
 
   @Override
   protected void doGet(HttpServletRequest req, HttpServletResponse resp)
       throws ServletException, IOException {
-    forwardOrWrite(req, resp);
+    render(req, resp);
+  }
+
+  /* ---------- helpers ---------- */
+
+  private HttpSession safeSession(HttpServletRequest req){
+    try {
+      HttpSession s = req.getSession(false);
+      return (s != null) ? s : req.getSession(true);
+    } catch (IllegalStateException e) {
+      return null;
+    }
+  }
+
+  private void persist(HttpSession s, Integer t, Integer a, Integer lo, Integer hi, List<Integer> h){
+    if (s == null) return;
+    s.setAttribute("target", t);
+    s.setAttribute("attempts", a);
+    s.setAttribute("low", lo);
+    s.setAttribute("high", hi);
+    s.setAttribute("history", h);
+  }
+
+  /** Forward for browsers (Accept: text/html), else write plain text for tests/CLI. */
+  private void render(HttpServletRequest req, HttpServletResponse resp)
+      throws IOException, ServletException {
+
+    String accept = req.getHeader("Accept");
+    boolean wantsHtml = accept != null && accept.contains("text/html");
+
+    RequestDispatcher rd = wantsHtml ? safeDispatcher(req, "/index.jsp") : null;
+    if (rd != null) {
+      rd.forward(req, resp);
+      return;
+    }
+
+    // Test-friendly plain text
+    resp.setContentType("text/plain;charset=UTF-8");
+    Object m = req.getAttribute("message");
+    resp.getWriter().write(m == null ? "" : m.toString());
+  }
+
+  private RequestDispatcher safeDispatcher(HttpServletRequest req, String path){
+    try { return req.getRequestDispatcher(path); }
+    catch (Exception e) { return null; }
   }
 }

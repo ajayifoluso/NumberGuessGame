@@ -1,99 +1,50 @@
 package com.studentapp;
 
-import javax.servlet.ServletException;
-import javax.servlet.annotation.WebServlet;
-import javax.servlet.http.*;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
+import java.io.PrintWriter;
+import java.util.Random;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
-@WebServlet(name = "NumberGuessServlet", urlPatterns = {"/guess"})
 public class NumberGuessServlet extends HttpServlet {
+    private static final long serialVersionUID = 1L;
+    private int targetNumber;
 
-  @Override
-  protected void doPost(HttpServletRequest req, HttpServletResponse resp)
-      throws ServletException, IOException {
-
-    HttpSession session = req.getSession(true);
-
-    // --- Session-scoped game state ---
-    Integer target = (Integer) session.getAttribute("target");
-    Integer attempts = (Integer) session.getAttribute("attempts");
-    Integer low = (Integer) session.getAttribute("low");
-    Integer high = (Integer) session.getAttribute("high");
-    @SuppressWarnings("unchecked")
-    List<Integer> history = (List<Integer>) session.getAttribute("history");
-
-    if (target == null) {
-      target = ThreadLocalRandom.current().nextInt(1, 101); // default 1–100
-      attempts = 0;
-      low = 1; high = 100;
-      history = new ArrayList<>();
+    public void init() throws ServletException {
+        targetNumber = new Random().nextInt(100) + 1;
     }
 
-    // Optional "New Game" button
-    if ("1".equals(req.getParameter("newGame"))) {
-      target = ThreadLocalRandom.current().nextInt(1, 101);
-      attempts = 0; low = 1; high = 100; history = new ArrayList<>();
-      session.setAttribute("target", target);
-      session.setAttribute("attempts", attempts);
-      session.setAttribute("low", low);
-      session.setAttribute("high", high);
-      session.setAttribute("history", history);
-      req.setAttribute("message", "New game started. Guess a number between 1 and 100!");
-      req.getRequestDispatcher("/index.jsp").forward(req, resp);
-      return;
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+        out.println("<h1>Number Guessing Game</h1>");
+        out.println("<form action='guess' method='post'>");
+        out.println("Guess a number between 1 and 100: <input type='text' name='guess' />");
+        out.println("<input type='submit' value='Submit' />");
+        out.println("</form>");
     }
 
-    String msg;
-    try {
-      int guess = Integer.parseInt(req.getParameter("guess"));
-
-      if (guess < 1 || guess > 100) {
-        msg = "Please enter a number between 1 and 100.";
-      } else {
-        attempts++;
-        history.add(guess);
-
-        if (guess < target) {
-          low = Math.max(low, guess + 1);
-          msg = "Too low! 🔻 Try a higher number (" + low + "–" + high + ").";
-        } else if (guess > target) {
-          high = Math.min(high, guess - 1);
-          msg = "Too high! 🔺 Try a lower number (" + low + "–" + high + ").";
-        } else {
-          // ✅ Your preferred win message
-          msg = "Bang on! " + target + " it is. Nailed it in " + attempts +
-                ". Start a new round when you're ready.";
-          // Keep state so user can click "New Game" to reset
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        response.setContentType("text/html");
+        PrintWriter out = response.getWriter();
+        try {
+            int guess = Integer.parseInt(request.getParameter("guess"));
+            if (guess < targetNumber) {
+                out.println("<h2>Your guess is too low. Try again!</h2>");
+            } else if (guess > targetNumber) {
+                out.println("<h2>Your guess is too high. Try again!</h2>");
+            } else {
+                out.println("<h2>Congratulations! You guessed the number!</h2>");
+                targetNumber = new Random().nextInt(100) + 1; // Reset game
+            }
+        } catch (NumberFormatException e) {
+            out.println("<h2>Invalid input. Please enter a valid number.</h2>");
         }
-      }
-    } catch (Exception e) {
-      msg = "Enter a valid whole number.";
+        out.println("<a href='guess'>Play Again</a>");
     }
-
-    // Persist state
-    session.setAttribute("target", target);
-    session.setAttribute("attempts", attempts);
-    session.setAttribute("low", low);
-    session.setAttribute("high", high);
-    session.setAttribute("history", history);
-
-    // Expose to JSP
-    req.setAttribute("message", msg);
-    req.setAttribute("attempts", attempts);
-    req.setAttribute("low", low);
-    req.setAttribute("high", high);
-    req.setAttribute("history", history);
-
-    req.getRequestDispatcher("/index.jsp").forward(req, resp);
-  }
-
-  @Override
-  protected void doGet(HttpServletRequest req, HttpServletResponse resp)
-      throws ServletException, IOException {
-    // Route GET → JSP so first load shows styled page
-    req.getRequestDispatcher("/index.jsp").forward(req, resp);
-  }
 }
+
